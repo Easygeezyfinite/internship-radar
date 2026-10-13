@@ -3,7 +3,10 @@ name: internship-radar
 
 on:
   schedule:
-    - cron: "*/15 * * * *"   # every 15 min (UTC). GitHub may start runs a few minutes late at busy times.
+    # Every 15 min, but on odd minutes. GitHub's scheduler is most overloaded at :00/:15/:30/:45
+    # (everyone picks those) and silently drops runs there. GitHub's cron is "best effort" either way;
+    # for a guaranteed beat, an external timer (Cloudflare cron) can press "Run workflow" for us.
+    - cron: "7,22,37,52 * * * *"
   workflow_dispatch:          # adds a "Run workflow" button so you can trigger it by hand
 
 # Never let two runs overlap - they'd both read the same memory file and double-ping.
