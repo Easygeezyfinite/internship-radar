@@ -1,0 +1,51 @@
+# Runs the bot on GitHub's machines every 15 minutes. Nothing runs on your laptop.
+name: internship-radar
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"   # every 15 min (UTC). GitHub may start runs a few minutes late at busy times.
+  workflow_dispatch:          # adds a "Run workflow" button so you can trigger it by hand
+
+# Never let two runs overlap - they'd both read the same memory file and double-ping.
+concurrency:
+  group: internship-radar
+  cancel-in-progress: false
+
+permissions:
+  contents: write   # needed to commit seen_postings.json back into the repo
+
+jobs:
+  check-for-new-postings:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # ref = the branch NAME, not the commit that triggered the run. A run that waited in the
+      # concurrency queue then checks out the newest memory file, not a stale one.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run the bot
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: python -m radar.main
+
+      # The memory file only changes when something new was sent, so most runs commit nothing.
+      # if: always() -> even if the bot step errored after saving memory, still keep what was sent.
+      - name: Save memory file back to the repo
+        if: always()
+        run: |
+          if [ -n "$(git status --porcelain seen_postings.json)" ]; then
+            git config user.name "internship-radar-bot"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add seen_postings.json
+            git commit -m "radar: update seen postings"
+            git pull --rebase origin "${{ github.ref_name }}"   # in case you pushed a code change meanwhile
+            git push
+          else
+            echo "no new postings, nothing to commit"
+          fi

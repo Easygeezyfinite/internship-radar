@@ -1,0 +1,4 @@
+__pycache__/
+*.pyc
+test_memory.json
+simulated_seen_postings.json
